@@ -1,0 +1,140 @@
+// ==============================================================================
+// OneAtlas - AI Model Discovery & Intelligence Platform
+// Prisma Schema Configuration for PostgreSQL
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ------------------------------------------------------------------------------
+// Model Providers & Research Labs (e.g. OpenAI, Anthropic, Meta AI, DeepSeek)
+// ------------------------------------------------------------------------------
+model Provider {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  websiteUrl  String?
+  logoUrl     String?
+  description String?
+  isVerified  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  models Model[]
+
+  @@map("providers")
+}
+
+// ------------------------------------------------------------------------------
+// Model Categories (e.g. LLM, Multimodal, Reasoning, Code, Embeddings)
+// ------------------------------------------------------------------------------
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  models ModelCategory[]
+
+  @@map("categories")
+}
+
+// ------------------------------------------------------------------------------
+// AI Models Registry
+// ------------------------------------------------------------------------------
+model Model {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  tagline          String?
+  description      String?
+  architecture     String?
+  parametersCount  String? // e.g. "70B", "671B (37B active MoE)"
+  contextWindow    Int? // Tokens (e.g., 128000, 1000000)
+  license          String? // e.g. "Apache-2.0", "Llama 3.3 Community", "Proprietary"
+  openWeights      Boolean   @default(false)
+  releaseDate      DateTime?
+  status           String    @default("ACTIVE") // ACTIVE, DEPRECATED, PREVIEW
+  isFeatured       Boolean   @default(false)
+  documentationUrl       String?
+  huggingFaceUrl         String?
+  inputPricePerMillion   Float?   // Pricing in USD per 1M input tokens
+  outputPricePerMillion  Float?   // Pricing in USD per 1M output tokens
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  providerId String
+  provider   Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  categories      ModelCategory[]
+  benchmarkScores ModelBenchmark[]
+
+  @@index([providerId])
+  @@map("models")
+}
+
+// ------------------------------------------------------------------------------
+// Model <-> Category Many-to-Many Join Relation
+// ------------------------------------------------------------------------------
+model ModelCategory {
+  modelId    String
+  categoryId String
+  model      Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([modelId, categoryId])
+  @@index([categoryId])
+  @@map("model_categories")
+}
+
+// ------------------------------------------------------------------------------
+// Standard Benchmarks (e.g. MMLU-Pro, GSM8K, HumanEval, SWE-bench Verified)
+// ------------------------------------------------------------------------------
+model Benchmark {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  category    String? // e.g. "Reasoning", "Code", "Knowledge"
+  description String?
+  maxScore    Float    @default(100.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  scores ModelBenchmark[]
+
+  @@map("benchmarks")
+}
+
+// ------------------------------------------------------------------------------
+// Model Benchmark Performance Scores
+// ------------------------------------------------------------------------------
+model ModelBenchmark {
+  id          String   @id @default(cuid())
+  score       Float
+  sourceUrl   String?
+  isVerified  Boolean  @default(true) // Explicitly flags verified real-world benchmark evaluations
+  notes       String?  // Provenance note (e.g. "Vendor technical report", "Crowdsourced LMSYS", "Generated demo baseline")
+  evaluatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modelId String
+  model   Model  @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  benchmarkId String
+  benchmark   Benchmark @relation(fields: [benchmarkId], references: [id], onDelete: Cascade)
+
+  @@unique([modelId, benchmarkId])
+  @@index([modelId])
+  @@index([benchmarkId])
+  @@map("model_benchmarks")
+}
